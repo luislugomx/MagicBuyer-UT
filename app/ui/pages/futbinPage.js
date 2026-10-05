@@ -2,26 +2,28 @@ import { log } from "../../core/logger";
 import { formatCoins } from "../../core/prices";
 import { fetchFutbinPrice, futbinRequestCount, resolveFutbinLink } from "../../prices/futbinClient";
 import { clearFutbinCache, getFutbinStatus, pricePlatform } from "../../prices/priceService";
+import { numberLocale, t } from "../../i18n";
 import { escapeHtml, qs, setHtml } from "../dom";
 import { grid, numberField, rangeField, section, selectField, toggleField } from "../fields";
 
-// Onglet FUTBIN : accès (test), fréquence de rafraîchissement, étiquettes sur les cartes, DCE.
+// FUTBIN tab: access (test), refresh rate, price tags on cards, SBC.
 
 const TEST_CARD = { definitionId: 231747, name: "Mbappé", rating: 0 };
 
-const STATE_TEXT = {
-  idle: "prêt",
-  fetching: "lecture en cours",
-  queued: "file d'attente",
-  blocked: "ralenti (FUTBIN bloque)",
+// Translation keys of the price service states, resolved at render time.
+const STATE_KEYS = {
+  idle: "pages.futbin.state.idle",
+  fetching: "pages.futbin.state.fetching",
+  queued: "pages.futbin.state.queued",
+  blocked: "pages.futbin.state.blocked",
 };
 
 const ago = (timestamp) => {
   if (!timestamp) {
-    return "jamais";
+    return t("pages.common.never");
   }
   const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
-  return seconds < 60 ? `il y a ${seconds} s` : `il y a ${Math.round(seconds / 60)} min`;
+  return t("pages.futbin.ago", { time: seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min` });
 };
 
 const statusHtml = () => {
@@ -29,16 +31,16 @@ const statusHtml = () => {
   const cell = (label, value) => `<div>${label}<b>${value}</b></div>`;
   const blocked = status.blockedUntil > Date.now();
   return `<div class="mb-stats-list">
-      ${cell("État", escapeHtml(STATE_TEXT[status.state] || status.state))}
-      ${cell("Plateforme", pricePlatform() === "pc" ? "PC" : "Console")}
-      ${cell("Cartes suivies", status.tracked)}
-      ${cell("En attente", status.queue)}
-      ${cell("Dernier prix lu", ago(status.lastSuccessAt))}
-      ${cell("Requêtes FUTBIN", futbinRequestCount())}
+      ${cell(t("pages.futbin.status.state"), escapeHtml(STATE_KEYS[status.state] ? t(STATE_KEYS[status.state]) : status.state))}
+      ${cell(t("pages.futbin.status.platform"), pricePlatform() === "pc" ? "PC" : t("pages.futbin.platform.console"))}
+      ${cell(t("pages.futbin.status.tracked"), status.tracked)}
+      ${cell(t("pages.futbin.status.queue"), status.queue)}
+      ${cell(t("pages.futbin.status.lastPrice"), ago(status.lastSuccessAt))}
+      ${cell(t("pages.futbin.status.requests"), futbinRequestCount())}
     </div>${
       status.lastError || blocked
-        ? `<div class="mb-note is-warn" style="margin-top:8px">${escapeHtml(status.lastError || "FUTBIN ralenti")}${
-            blocked ? ` · reprise dans ${Math.ceil((status.blockedUntil - Date.now()) / 1000)} s` : ""
+        ? `<div class="mb-note is-warn" style="margin-top:8px">${escapeHtml(status.lastError || t("pages.futbin.status.slowed"))}${
+            blocked ? ` · ${t("pages.futbin.status.resumeIn", { seconds: Math.ceil((status.blockedUntil - Date.now()) / 1000) })}` : ""
           }</div>`
         : ""
     }`;
@@ -46,60 +48,60 @@ const statusHtml = () => {
 
 export const futbinPageHtml = () => `
   ${section(
-    "Accès FUTBIN",
+    t("pages.futbin.section.access"),
     `<div data-futbin-status>${statusHtml()}</div>
      <div class="mb-row" style="margin-top:8px">
-       <button type="button" class="mb-btn mb-btn-primary mb-btn-sm" data-futbin-action="test">Tester FUTBIN</button>
-       <button type="button" class="mb-btn mb-btn-ghost mb-btn-sm" data-futbin-action="open">Ouvrir futbin.com</button>
-       <button type="button" class="mb-btn mb-btn-ghost mb-btn-sm" data-futbin-action="clear">Vider le cache des prix</button>
+       <button type="button" class="mb-btn mb-btn-primary mb-btn-sm" data-futbin-action="test">${t("pages.futbin.test")}</button>
+       <button type="button" class="mb-btn mb-btn-ghost mb-btn-sm" data-futbin-action="open">${t("pages.futbin.open")}</button>
+       <button type="button" class="mb-btn mb-btn-ghost mb-btn-sm" data-futbin-action="clear">${t("pages.futbin.clearCache")}</button>
      </div>
      <div data-futbin-test></div>
-     <p class="mb-hint">Les prix sont lus sur les pages FUTBIN (comme dans ton navigateur). Une seule requête à la fois, espacées, et ralentissement automatique si FUTBIN bloque.</p>`
+     <p class="mb-hint">${t("pages.futbin.access.hint")}</p>`
   )}
   ${section(
-    "Rafraîchissement des prix",
+    t("pages.futbin.section.refresh"),
     grid(
       selectField({
         bind: "s:prices.platform",
-        label: "Plateforme des prix",
+        label: t("pages.futbin.platform.label"),
         wide: true,
         options: [
-          ["auto", "Automatique (plateforme de ton compte)"],
-          ["console", "Console (PlayStation / Xbox)"],
+          ["auto", t("pages.futbin.platform.auto")],
+          ["console", t("pages.futbin.platform.consoleOption")],
           ["pc", "PC"],
         ],
       }),
-      numberField({ bind: "s:prices.hotInterval", label: "Cibles du bot et achats DCE", min: 60, max: 120, hint: "relus toutes les N secondes (60 à 120)" }),
-      numberField({ bind: "s:prices.visibleInterval", label: "Cartes affichées", min: 60, max: 600, hint: "secondes ; moins souvent si le prix ne bouge pas" }),
-      numberField({ bind: "s:prices.jumpGuard", label: "Saut de prix suspect", min: 5, max: 90, hint: "% d'écart : revérifié avant que le bot l'utilise" }),
-      numberField({ bind: "s:prices.minGap", label: "Écart entre requêtes", float: true, min: 0.8, max: 10, hint: "secondes entre deux pages FUTBIN" }),
+      numberField({ bind: "s:prices.hotInterval", label: t("pages.futbin.hotInterval.label"), min: 60, max: 120, hint: t("pages.futbin.hotInterval.hint") }),
+      numberField({ bind: "s:prices.visibleInterval", label: t("pages.futbin.visibleInterval.label"), min: 60, max: 600, hint: t("pages.futbin.visibleInterval.hint") }),
+      numberField({ bind: "s:prices.jumpGuard", label: t("pages.futbin.jumpGuard.label"), min: 5, max: 90, hint: t("pages.futbin.jumpGuard.hint") }),
+      numberField({ bind: "s:prices.minGap", label: t("pages.futbin.minGap.label"), float: true, min: 0.8, max: 10, hint: t("pages.futbin.minGap.hint") }),
       toggleField({
         bind: "s:prices.iframeFallback",
-        label: "Secours : page FUTBIN cachée",
+        label: t("pages.futbin.iframeFallback.label"),
         wide: true,
-        hint: "Si FUTBIN refuse la requête directe (Cloudflare), la page est chargée dans une iframe invisible.",
+        hint: t("pages.futbin.iframeFallback.hint"),
       })
     )
   )}
   ${section(
-    "Affichage",
+    t("pages.futbin.section.display"),
     grid(
       toggleField({
         bind: "s:ui.cardPrices",
-        label: "Prix FUTBIN sur les cartes",
+        label: t("pages.futbin.cardPrices.label"),
         wide: true,
-        hint: "Petite étiquette en haut de chaque carte joueur (club, marché, transferts, équipes, DCE). Clic : page FUTBIN de la carte.",
+        hint: t("pages.futbin.cardPrices.hint"),
       })
     )
   )}
   ${section(
-    "DCE : solutions FUTBIN",
+    t("pages.futbin.section.sbc"),
     grid(
-      numberField({ bind: "s:sbc.margin", label: "Marge sur le prix FUTBIN", min: 0, max: 50, hint: "% ajoutés au prix FUTBIN pour le prix max des manquants" }),
-      numberField({ bind: "s:sbc.triesPerPlayer", label: "Recherches par joueur", min: 1, max: 30 }),
-      rangeField({ bind: "s:sbc.wait", label: "Pause entre recherches", unit: "S", placeholder: "3-5", wide: true })
+      numberField({ bind: "s:sbc.margin", label: t("pages.futbin.sbcMargin.label"), min: 0, max: 50, hint: t("pages.futbin.sbcMargin.hint") }),
+      numberField({ bind: "s:sbc.triesPerPlayer", label: t("pages.futbin.sbcTries.label"), min: 1, max: 30 }),
+      rangeField({ bind: "s:sbc.wait", label: t("pages.futbin.sbcWait.label"), unit: "S", placeholder: "3-5", wide: true })
     ) +
-      `<p class="mb-hint">Dans l'équipe d'un défi, clique sur « ⚡ Solution FUTBIN » (en haut de l'écran) et colle le lien de la solution. Le défi n'est jamais envoyé automatiquement.</p>`
+      `<p class="mb-hint">${t("pages.futbin.sbc.hint")}</p>`
   )}
 `;
 
@@ -112,38 +114,45 @@ export const refreshFutbinStatus = (body) => {
 
 const runTest = async (out) => {
   const started = Date.now();
-  out.innerHTML = `<div class="mb-note" style="margin-top:8px">Test en cours (recherche puis page joueur)…</div>`;
-  // Test explicite : la requête directe est retentée même si FUTBIN l'a refusée il y a peu.
+  out.innerHTML = `<div class="mb-note" style="margin-top:8px">${t("pages.futbin.testRunning")}</div>`;
+  // Explicit test: the direct request is retried even if FUTBIN refused it recently.
   const resolved = await resolveFutbinLink(TEST_CARD, { forceDirect: true });
   if (!resolved.ok) {
     const message = resolved.blocked
-      ? "FUTBIN demande une vérification (Cloudflare). Clique sur « Ouvrir futbin.com », passe la vérification si elle s'affiche, puis reteste."
+      ? t("pages.futbin.testError.blocked")
       : resolved.notFound
-      ? "FUTBIN répond, mais la carte de test est introuvable : le format de la recherche FUTBIN a peut-être changé."
-      : `FUTBIN ne répond pas${resolved.status ? ` (${resolved.status})` : ""}.`;
+      ? t("pages.futbin.testError.notFound")
+      : `${t("pages.futbin.testError.noResponse")}${resolved.status ? ` (${resolved.status})` : ""}.`;
     out.innerHTML = `<div class="mb-note is-warn" style="margin-top:8px">✗ ${escapeHtml(message)}</div>`;
-    log.warn(`Test FUTBIN : ${message}`);
+    log.warn(t("pages.futbin.log.testFailed", { message }));
     return;
   }
   const platform = pricePlatform();
   const price = await fetchFutbinPrice(resolved.link, platform, { forceDirect: true });
-  const seconds = ((Date.now() - started) / 1000).toFixed(1).replace(".", ",");
+  const seconds = ((Date.now() - started) / 1000).toLocaleString(numberLocale(), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
   if (!price.ok) {
     const message = price.blocked
-      ? "la page joueur est bloquée par Cloudflare"
+      ? t("pages.futbin.priceError.blocked")
       : price.noPrice
-      ? "la page joueur est lue mais le prix est introuvable (format FUTBIN changé ?)"
-      : `la page joueur ne répond pas${price.status ? ` (${price.status})` : ""}`;
-    out.innerHTML = `<div class="mb-note is-warn" style="margin-top:8px">✗ Recherche OK, mais ${escapeHtml(message)}.</div>`;
-    log.warn(`Test FUTBIN : ${message}.`);
+      ? t("pages.futbin.priceError.noPrice")
+      : `${t("pages.futbin.priceError.noResponse")}${price.status ? ` (${price.status})` : ""}`;
+    out.innerHTML = `<div class="mb-note is-warn" style="margin-top:8px">✗ ${escapeHtml(t("pages.futbin.priceError.searchOk", { message }))}.</div>`;
+    log.warn(`${t("pages.futbin.log.testFailed", { message })}.`);
     return;
   }
-  const via = price.via === "iframe" ? "page cachée (secours)" : "requête directe";
-  const age = price.updatedAgoSec ? ` · mis à jour par FUTBIN il y a ${Math.round(price.updatedAgoSec / 60)} min` : "";
-  out.innerHTML = `<div class="mb-note" style="margin-top:8px">✓ FUTBIN accessible (${escapeHtml(via)}) : ${escapeHtml(
-    resolved.link.name || TEST_CARD.name
-  )} = <b>${formatCoins(price.price)}</b> (${platform === "pc" ? "PC" : "console"})${age} · ${seconds} s</div>`;
-  log.success(`Test FUTBIN réussi (${via}) : ${resolved.link.name || TEST_CARD.name} = ${formatCoins(price.price)}.`);
+  const via = price.via === "iframe" ? t("pages.futbin.via.iframe") : t("pages.futbin.via.direct");
+  const age = price.updatedAgoSec
+    ? ` · ${t("pages.futbin.updatedAgo", { minutes: Math.round(price.updatedAgoSec / 60) })}`
+    : "";
+  const name = resolved.link.name || TEST_CARD.name;
+  const platformText = platform === "pc" ? "PC" : t("pages.futbin.platform.consoleLower");
+  out.innerHTML = `<div class="mb-note" style="margin-top:8px">✓ ${escapeHtml(t("pages.futbin.testOk", { via }))} : ${escapeHtml(
+    name
+  )} = <b>${formatCoins(price.price)}</b> (${escapeHtml(platformText)})${age} · ${seconds} s</div>`;
+  log.success(t("pages.futbin.log.testOk", { via, name, price: formatCoins(price.price) }));
 };
 
 export const bindFutbinPage = (page) => {
@@ -157,9 +166,9 @@ export const bindFutbinPage = (page) => {
       return;
     }
     if (action.dataset.futbinAction === "clear") {
-      if (window.confirm("Vider le cache des prix et des liens FUTBIN ?")) {
+      if (window.confirm(t("pages.futbin.confirmClear"))) {
         clearFutbinCache();
-        log.info("Cache FUTBIN vidé.");
+        log.info(t("pages.futbin.log.cacheCleared"));
         refreshFutbinStatus(page);
       }
       return;

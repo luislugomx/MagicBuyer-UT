@@ -6,7 +6,6 @@ import { formatDuration } from "../core/ranges";
 import { getSettings, onSettingsChange, setSetting } from "../core/settings";
 import {
   STATUS,
-  STATUS_LABEL,
   clearLogs,
   getLogs,
   getState,
@@ -14,7 +13,9 @@ import {
   onLog,
   onStateChange,
   searchesLastMinute,
+  statusLabel,
 } from "../core/state";
+import { LANGUAGE_CHOICES, getLanguageChoice, numberLocale, onLanguageChange, setLanguageChoice, t } from "../i18n";
 import { escapeHtml, formatTime, qs, qsa, setText, toggleClass } from "./dom";
 import { bindFields, refreshFields } from "./fields";
 import {
@@ -31,27 +32,31 @@ import { bindTargetPage, sellExtra, targetPageHtml } from "./pages/target";
 import { STYLES } from "./styles";
 
 const TABS = [
-  { id: "target", label: "Cible", html: targetPageHtml },
-  { id: "buy", label: "Achat", html: buyPageHtml },
-  { id: "sell", label: "Vente", html: sellPageHtml },
-  { id: "timing", label: "Timing", html: timingPageHtml },
-  { id: "transfer", label: "Transferts", html: transferPageHtml },
-  { id: "futbin", label: "FUTBIN", html: futbinPageHtml },
-  { id: "alerts", label: "Alertes", html: alertsPageHtml },
+  { id: "target", labelKey: "ui.tab.target", html: targetPageHtml },
+  { id: "buy", labelKey: "ui.tab.buy", html: buyPageHtml },
+  { id: "sell", labelKey: "ui.tab.sell", html: sellPageHtml },
+  { id: "timing", labelKey: "ui.tab.timing", html: timingPageHtml },
+  { id: "transfer", labelKey: "ui.tab.transfer", html: transferPageHtml },
+  { id: "futbin", labelKey: "ui.tab.futbin", html: futbinPageHtml },
+  { id: "alerts", labelKey: "ui.tab.alerts", html: alertsPageHtml },
 ];
 
 const LOG_ICONS = { search: "🔎", buy: "✅", success: "✔️", warning: "⚠️", error: "⛔", info: "•" };
 const LOG_FILTERS = [
-  ["all", "Tout"],
-  ["quiet", "Sans recherches"],
-  ["buys", "Achats"],
-  ["alerts", "Alertes"],
+  ["all", "ui.log.filter.all"],
+  ["quiet", "ui.log.filter.quiet"],
+  ["buys", "ui.log.filter.buys"],
+  ["alerts", "ui.log.filter.alerts"],
 ];
+
+// Language names are always shown in their own language.
+const LANGUAGE_NAMES = { en: "English", es: "Español" };
 
 let root = null;
 let ticker = null;
-// Abonnements globaux du panneau : remplacés (jamais cumulés) si le panneau est recréé.
+// Global panel subscriptions: replaced (never stacked) when the panel is rebuilt.
 let unsubscribers = [];
+let languageWatched = false;
 
 export const injectStyles = () => {
   if (document.getElementById("mb-styles")) {
@@ -63,54 +68,66 @@ export const injectStyles = () => {
   (document.head || document.documentElement).appendChild(style);
 };
 
+const languageSelectHtml = () => {
+  const current = getLanguageChoice();
+  const label = escapeHtml(t("ui.language.label"));
+  const options = LANGUAGE_CHOICES.map((choice) => {
+    const name = choice === "auto" ? t("ui.language.auto") : LANGUAGE_NAMES[choice] || choice;
+    const lang = choice === "auto" ? "" : ` lang="${choice}"`;
+    return `<option value="${choice}"${lang}${choice === current ? " selected" : ""}>${escapeHtml(name)}</option>`;
+  }).join("");
+  return `<select class="mb-lang" data-language aria-label="${label}" title="${label}">${options}</select>`;
+};
+
 const shellHtml = () => `
   <aside class="mb-panel" role="complementary" aria-label="MagicBuyer">
     <header class="mb-head">
       <div class="mb-logo">MB</div>
-      <div class="mb-title"><strong>MagicBuyer</strong><small>Sniper FC 27 · v${VERSION}</small></div>
-      <button type="button" class="mb-icon-btn" data-action="close" aria-label="Fermer le panneau" title="Fermer">×</button>
+      <div class="mb-title"><strong>MagicBuyer</strong><small>${escapeHtml(t("ui.header.subtitle", { version: VERSION }))}</small></div>
+      ${languageSelectHtml()}
+      <button type="button" class="mb-icon-btn" data-action="close" aria-label="${escapeHtml(t("ui.header.close.aria"))}" title="${escapeHtml(t("ui.header.close.title"))}">×</button>
     </header>
     <div class="mb-bar">
       <div class="mb-state" data-state data-status="idle">
         <span class="mb-dot"></span>
-        <span class="mb-state-text"><b data-state-label>À l'arrêt</b><small data-state-detail></small></span>
+        <span class="mb-state-text"><b data-state-label>${escapeHtml(statusLabel(STATUS.IDLE))}</b><small data-state-detail></small></span>
       </div>
-      <button type="button" class="mb-btn mb-btn-start" data-action="start">▶ Démarrer</button>
-      <button type="button" class="mb-btn mb-btn-pause" data-action="pause" hidden>❚❚ Pause</button>
-      <button type="button" class="mb-btn mb-btn-stop" data-action="stop" hidden>■ Stop</button>
+      <button type="button" class="mb-btn mb-btn-start" data-action="start">${escapeHtml(t("ui.action.start"))}</button>
+      <button type="button" class="mb-btn mb-btn-pause" data-action="pause" hidden>${escapeHtml(t("ui.action.pause"))}</button>
+      <button type="button" class="mb-btn mb-btn-stop" data-action="stop" hidden>${escapeHtml(t("ui.action.stop"))}</button>
     </div>
     <div class="mb-kpis">
-      <div class="mb-kpi"><span>Recherches</span><strong data-kpi="searches">0</strong></div>
-      <div class="mb-kpi"><span>/ minute</span><strong data-kpi="rate">0</strong></div>
-      <div class="mb-kpi is-good"><span>Achats</span><strong data-kpi="won">0</strong></div>
-      <div class="mb-kpi"><span>Ratés</span><strong data-kpi="missed">0</strong></div>
-      <div class="mb-kpi"><span>Dépensé</span><strong data-kpi="spent">0</strong></div>
-      <div class="mb-kpi"><span>Profit estimé</span><strong data-kpi="profit">0</strong></div>
-      <div class="mb-kpi"><span>Coins</span><strong data-kpi="coins">—</strong></div>
-      <div class="mb-kpi"><span>Durée</span><strong data-kpi="time">00:00:00</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.searches")}</span><strong data-kpi="searches">0</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.rate")}</span><strong data-kpi="rate">0</strong></div>
+      <div class="mb-kpi is-good"><span>${t("ui.kpi.won")}</span><strong data-kpi="won">0</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.missed")}</span><strong data-kpi="missed">0</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.spent")}</span><strong data-kpi="spent">0</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.profit")}</span><strong data-kpi="profit">0</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.coins")}</span><strong data-kpi="coins">—</strong></div>
+      <div class="mb-kpi"><span>${t("ui.kpi.time")}</span><strong data-kpi="time">00:00:00</strong></div>
     </div>
-    <div class="mb-next" aria-hidden="true"><div class="mb-next-fill" data-next-fill></div><span class="mb-next-label" data-next-label>Prêt</span></div>
+    <div class="mb-next" aria-hidden="true"><div class="mb-next-fill" data-next-fill></div><span class="mb-next-label" data-next-label>${t("ui.next.ready")}</span></div>
     <nav class="mb-tabs" role="tablist">
-      ${TABS.map((tab) => `<button type="button" class="mb-tab" role="tab" data-tab="${tab.id}">${tab.label}</button>`).join("")}
+      ${TABS.map((tab) => `<button type="button" class="mb-tab" role="tab" data-tab="${tab.id}">${t(tab.labelKey)}</button>`).join("")}
     </nav>
     <div class="mb-body" data-body>
       ${TABS.map((tab) => `<div class="mb-page" role="tabpanel" data-page="${tab.id}">${tab.html()}</div>`).join("")}
     </div>
     <section class="mb-log" data-log>
-      <div class="mb-log-resize" data-log-resize title="Glisser pour redimensionner"></div>
+      <div class="mb-log-resize" data-log-resize title="${escapeHtml(t("ui.log.resize"))}"></div>
       <div class="mb-log-head">
-        <strong>Journal</strong>
-        ${LOG_FILTERS.map(([id, label]) => `<button type="button" class="mb-log-filter" data-log-filter="${id}">${label}</button>`).join("")}
-        <button type="button" class="mb-icon-btn" data-action="export" title="Exporter les transactions (CSV)" aria-label="Exporter">⇩</button>
-        <button type="button" class="mb-icon-btn" data-action="clear-log" title="Vider le journal" aria-label="Vider le journal">⌫</button>
-        <button type="button" class="mb-icon-btn" data-action="collapse-log" title="Réduire / agrandir" aria-label="Réduire le journal">▾</button>
+        <strong>${t("ui.log.title")}</strong>
+        ${LOG_FILTERS.map(([id, key]) => `<button type="button" class="mb-log-filter" data-log-filter="${id}">${t(key)}</button>`).join("")}
+        <button type="button" class="mb-icon-btn" data-action="export" title="${escapeHtml(t("ui.log.export.title"))}" aria-label="${escapeHtml(t("ui.log.export.aria"))}">⇩</button>
+        <button type="button" class="mb-icon-btn" data-action="clear-log" title="${escapeHtml(t("ui.log.clear"))}" aria-label="${escapeHtml(t("ui.log.clear"))}">⌫</button>
+        <button type="button" class="mb-icon-btn" data-action="collapse-log" title="${escapeHtml(t("ui.log.collapse.title"))}" aria-label="${escapeHtml(t("ui.log.collapse.aria"))}">▾</button>
       </div>
       <ol class="mb-log-list" data-log-list aria-live="polite"></ol>
     </section>
   </aside>
 `;
 
-// ------------------------------------------------------------------ journal
+// ------------------------------------------------------------------ log
 
 const logMatches = (entry, filter) => {
   if (filter === "quiet") {
@@ -140,8 +157,8 @@ const renderLogs = () => {
   qsa(root, "[data-log-filter]").forEach((btn) => toggleClass(btn, "is-active", btn.dataset.logFilter === filter));
 };
 
-// Rendu du journal regroupé à la prochaine image : écrire un log ne coûte rien au moteur
-// (aucune mise en page forcée entre une recherche et l'achat qui suit).
+// Log rendering is batched to the next frame: writing a log costs the engine nothing
+// (no forced layout between a search and the purchase that follows).
 let pendingLogs = [];
 let logFrame = 0;
 
@@ -184,21 +201,41 @@ const appendLog = (entry) => {
 };
 
 const exportCsv = () => {
-  const rows = [["heure", "type", "carte", "note", "prix", "bénéfice", "filtre"]];
-  getTransactions().forEach((t) =>
+  const rows = [
+    [
+      t("ui.csv.time"),
+      t("ui.csv.type"),
+      t("ui.csv.card"),
+      t("ui.csv.rating"),
+      t("ui.csv.price"),
+      t("ui.csv.profit"),
+      t("ui.csv.filter"),
+    ],
+  ];
+  const locale = numberLocale();
+  getTransactions().forEach((tx) =>
     rows.push([
-      new Date(t.time).toLocaleString("fr-FR"),
-      t.type,
-      t.name,
-      t.rating || "",
-      t.price || "",
-      t.profit || "",
-      t.filter || "",
+      new Date(tx.time).toLocaleString(locale),
+      tx.type,
+      tx.name,
+      tx.rating || "",
+      tx.price || "",
+      tx.profit || "",
+      tx.filter || "",
     ])
   );
   const stats = getState().stats;
   rows.push([]);
-  rows.push(["recherches", stats.searches, "achats", stats.won, "dépensé", stats.spent, "profit estimé", stats.estProfit]);
+  rows.push([
+    t("ui.csv.searches"),
+    stats.searches,
+    t("ui.csv.buys"),
+    stats.won,
+    t("ui.csv.spent"),
+    stats.spent,
+    t("ui.csv.estProfit"),
+    stats.estProfit,
+  ]);
   const csv = rows
     .map((row) => row.map((cell) => `"${String(cell == null ? "" : cell).replace(/"/g, '""')}"`).join(";"))
     .join("\n");
@@ -210,7 +247,7 @@ const exportCsv = () => {
   link.remove();
 };
 
-// --------------------------------------------------------------- affichage
+// --------------------------------------------------------------- display
 
 const stateDetail = (state) => {
   if (state.status === STATUS.IDLE || state.status === STATUS.STOPPED) {
@@ -218,10 +255,10 @@ const stateDetail = (state) => {
       return state.detail;
     }
     const filters = runnableFilters();
-    return filters.length > 1 ? `${filters.length} filtres prêts` : describeFilter(getActiveFilter());
+    return filters.length > 1 ? t("ui.state.filtersReady", { count: filters.length }) : describeFilter(getActiveFilter());
   }
   if (state.status === STATUS.PAUSED) {
-    return "Clique sur Reprendre pour continuer";
+    return t("ui.state.pausedHint");
   }
   return state.filterName || describeFilter(getActiveFilter());
 };
@@ -229,26 +266,31 @@ const stateDetail = (state) => {
 const nextLabel = (state, now) => {
   const remaining = Math.max(0, (state.nextSearchAt || 0) - now);
   if (state.status === STATUS.AUTO_PAUSE) {
-    return `Pause automatique · reprise dans ${formatDuration(remaining)}`;
+    return t("ui.next.autoPause", { duration: formatDuration(remaining) });
   }
   if (state.status === STATUS.COOLDOWN) {
-    return `Pause de sécurité · reprise dans ${formatDuration(remaining)}`;
+    return t("ui.next.cooldown", { duration: formatDuration(remaining) });
   }
   if (state.status === STATUS.PAUSED) {
-    return "En pause";
+    return t("ui.next.paused");
   }
   if (state.status === STATUS.STOPPING) {
-    return isFinalizing()
-      ? "Mise en vente des cartes achetées… (Stop pour interrompre)"
-      : "Arrêt en cours (fin de la requête en cours)…";
+    return isFinalizing() ? t("ui.next.finalizing") : t("ui.next.stopping");
   }
   if (state.status === STATUS.RUNNING) {
-    return state.nextSearchAt ? `Prochaine recherche dans ${(remaining / 1000).toFixed(1)} s` : "Recherche en cours…";
+    return state.nextSearchAt
+      ? t("ui.next.nextSearch", {
+          seconds: (remaining / 1000).toLocaleString(numberLocale(), {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          }),
+        })
+      : t("ui.next.searching");
   }
   if (state.status === STATUS.STARTING) {
-    return "Synchronisation avec EA…";
+    return t("ui.next.syncing");
   }
-  return "Prêt";
+  return t("ui.next.ready");
 };
 
 const paintState = () => {
@@ -262,7 +304,7 @@ const paintState = () => {
   if (stateEl.dataset.status !== state.status) {
     stateEl.dataset.status = state.status;
   }
-  setText(qs(root, "[data-state-label]"), STATUS_LABEL[state.status] || state.status);
+  setText(qs(root, "[data-state-label]"), statusLabel(state.status));
   setText(qs(root, "[data-state-detail]"), stateDetail(state));
   const running = isRunning();
   const stopping = isStopping();
@@ -270,7 +312,7 @@ const paintState = () => {
   const pauseBtn = qs(root, '[data-action="pause"]');
   const stopBtn = qs(root, '[data-action="stop"]');
   startBtn.hidden = stopping || (running && !isPaused());
-  setText(startBtn, isPaused() ? "▶ Reprendre" : "▶ Démarrer");
+  setText(startBtn, isPaused() ? t("ui.action.resume") : t("ui.action.start"));
   pauseBtn.hidden = !running || isPaused() || stopping;
   stopBtn.hidden = !running;
   stopBtn.disabled = stopping && !isFinalizing();
@@ -299,7 +341,7 @@ const paintState = () => {
 };
 
 const showTab = (id) => {
-  const tab = TABS.some((t) => t.id === id) ? id : "target";
+  const tab = TABS.some((entry) => entry.id === id) ? id : "target";
   qsa(root, "[data-tab]").forEach((btn) => {
     const active = btn.dataset.tab === tab;
     toggleClass(btn, "is-active", active);
@@ -333,7 +375,7 @@ const startTicker = () => {
   }, 250);
 };
 
-// --------------------------------------------------------------- montage
+// --------------------------------------------------------------- mounting
 
 const bindShell = () => {
   const body = qs(root, "[data-body]");
@@ -386,7 +428,7 @@ const bindShell = () => {
         pauseBot();
         break;
       case "stop":
-        stopBot("arrêt manuel", { manual: true });
+        stopBot(t("ui.stop.manual"), { manual: true });
         break;
       case "clear-log":
         clearLogs();
@@ -404,6 +446,10 @@ const bindShell = () => {
         break;
     }
     paintState();
+  });
+
+  qs(root, "[data-language]").addEventListener("change", (event) => {
+    setLanguageChoice(event.target.value);
   });
 
   const logEl = qs(root, "[data-log]");
@@ -449,6 +495,7 @@ export const ensurePanel = () => {
     return null;
   }
   injectStyles();
+  watchLanguage();
   root = document.getElementById("mb-root");
   if (!root) {
     root = document.createElement("div");
@@ -462,6 +509,49 @@ export const ensurePanel = () => {
     startTicker();
   }
   return root;
+};
+
+// Rebuilds the panel in the new language. The bot keeps running: only the DOM and the
+// panel subscriptions are recreated.
+const rebuildPanel = () => {
+  const wasOpen = isPanelOpen();
+  const focused = document.activeElement;
+  const hadLanguageFocus = !!(root && focused && root.contains(focused) && focused.matches("[data-language]"));
+  unsubscribers.forEach((off) => off());
+  unsubscribers = [];
+  pendingLogs = [];
+  const old = root || document.getElementById("mb-root");
+  if (old) {
+    old.remove();
+  }
+  root = null;
+  const el = ensurePanel();
+  if (!el) {
+    return;
+  }
+  if (wasOpen) {
+    el.classList.add("is-open");
+    document.body.classList.add("mb-open");
+  }
+  showTab(getSettings().ui.activeTab);
+  if (hadLanguageFocus) {
+    const select = qs(el, "[data-language]");
+    if (select) {
+      select.focus();
+    }
+  }
+};
+
+const watchLanguage = () => {
+  if (languageWatched) {
+    return;
+  }
+  languageWatched = true;
+  onLanguageChange(() => {
+    if (root) {
+      rebuildPanel();
+    }
+  });
 };
 
 export const isPanelOpen = () => !!(root && root.classList.contains("is-open"));

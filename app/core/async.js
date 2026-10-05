@@ -1,6 +1,6 @@
 import { newPageObject, toPageFunction } from "./page";
 
-// Jeton d'annulation : Stop réveille immédiatement toutes les attentes en cours.
+// Cancellation token: Stop immediately wakes up every pending wait.
 export const createCancelToken = () => {
   const listeners = new Set();
   const token = {
@@ -27,7 +27,7 @@ export const createCancelToken = () => {
   return token;
 };
 
-// Résout `true` après `ms`, ou `false` si le jeton est annulé avant.
+// Resolves `true` after `ms`, or `false` if the token is cancelled first.
 export const sleep = (ms, token) =>
   new Promise((resolve) => {
     if (token && token.cancelled) {
@@ -54,8 +54,8 @@ export const sleep = (ms, token) =>
     }
   });
 
-// Transforme un EAObservable du web app en Promise, avec délai maximum.
-// Ne rejette jamais : en cas d'échec on résout une réponse { success: false }.
+// Turns a web app EAObservable into a Promise, with a timeout.
+// Never rejects: on failure it resolves a { success: false } response.
 export const observe = (observable, timeoutMs = 15000) =>
   new Promise((resolve) => {
     if (!observable || typeof observable.observe !== "function") {

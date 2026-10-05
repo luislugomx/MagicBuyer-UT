@@ -2,7 +2,7 @@ import { getUser } from "../core/page";
 
 let platform = null;
 
-// Plateforme du persona (prix FUTBIN différents sur PC et consoles).
+// Persona platform (FUTBIN prices differ between PC and consoles).
 export const getUserPlatform = () => {
   if (platform) {
     return platform;

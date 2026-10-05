@@ -1,10 +1,12 @@
-// Lecture des champs "plage" : "6-10", "7.5", "20-40S", "1-2H", "5M", "1D".
+import { t } from "../i18n";
+
+// Parsing of "range" fields: "6-10", "7.5", "20-40S", "1-2H", "5M", "1D".
 
 const UNIT_SECONDS = { S: 1, M: 60, H: 3600, D: 86400, J: 86400 };
 
 const cleanNumber = (text) => parseFloat(String(text).replace(",", "."));
 
-// Retourne { min, max } en secondes (ou en unités brutes si unit = null), ou null si invalide.
+// Returns { min, max } in seconds (or in raw units if unit = null), or null if invalid.
 export const parseRange = (value, defaultUnit = "S") => {
   if (value == null) {
     return null;
@@ -49,13 +51,13 @@ export const randomBetween = (min, max) => {
   return min + Math.random() * (max - min);
 };
 
-// Valeur aléatoire en secondes dans la plage (0 si vide/invalide).
+// Random value in seconds within the range (0 if empty/invalid).
 export const pickSeconds = (value, defaultUnit = "S") => {
   const range = parseRange(value, defaultUnit);
   return range ? randomBetween(range.min, range.max) : 0;
 };
 
-// Entier aléatoire dans la plage (ex. "15-25" recherches), 0 si vide.
+// Random integer within the range (e.g. "15-25" searches), 0 if empty.
 export const pickInt = (value) => {
   const range = parseRange(value, null);
   if (!range) {
@@ -82,7 +84,7 @@ export const describeRange = (value, defaultUnit = "S") => {
   };
   return range.min === range.max
     ? fmt(range.min)
-    : `${fmt(range.min)} à ${fmt(range.max)}`;
+    : t("core.range.between", { min: fmt(range.min), max: fmt(range.max) });
 };
 
 export const formatDuration = (ms) => {

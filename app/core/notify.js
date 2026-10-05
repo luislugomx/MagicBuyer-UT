@@ -1,9 +1,10 @@
+import { numberLocale } from "../i18n";
 import { sendExternalRequest } from "../services/externalRequest";
 import { playTone } from "./audio";
 import { eaToast } from "./page";
 import { getSettings } from "./settings";
 
-// Notifications : son, bureau, Discord (webhook), Telegram, toast EA.
+// Notifications: sound, desktop, Discord (webhook), Telegram, EA toast.
 
 export const sound = (kind) => {
   const settings = getSettings().notify;
@@ -65,7 +66,7 @@ const sendDiscord = (message, kind) => {
       {
         description: message,
         color: COLORS[kind] || COLORS.test,
-        footer: { text: `MagicBuyer · ${new Date().toLocaleTimeString("fr-FR")}` },
+        footer: { text: `MagicBuyer · ${new Date().toLocaleTimeString(numberLocale())}` },
       },
     ],
   });
@@ -87,7 +88,7 @@ const sendTelegram = (message) => {
 
 const EVENT_TOGGLES = { buy: "onBuy", fail: "onFail", list: "onList", stop: "onStop", alert: "onStop" };
 
-// kind : buy | fail | list | stop | alert | test
+// kind: buy | fail | list | stop | alert | test
 export const notifyEvent = (kind, message, { toast = false, negative = false } = {}) => {
   const settings = getSettings().notify;
   const toggle = EVENT_TOGGLES[kind];

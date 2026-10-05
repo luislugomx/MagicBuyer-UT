@@ -1,7 +1,7 @@
 import { createCancelToken } from "./async";
 
-// Tâches manuelles (achat des manquants d'un DCE, mise en vente groupée) : une seule à la fois,
-// et jamais en même temps que le bot, pour ne pas multiplier les requêtes envoyées à EA.
+// Manual tasks (buying an SBC's missing players, bulk listing): only one at a time,
+// and never alongside the bot, to avoid piling up requests sent to EA.
 
 let current = null;
 const listeners = new Set();
@@ -20,7 +20,7 @@ export const onTaskChange = (fn) => {
   return () => listeners.delete(fn);
 };
 
-// Renvoie la tâche (avec son jeton d'annulation) ou null si une autre tâche est en cours.
+// Returns the task (with its cancellation token) or null if another task is running.
 export const beginTask = (label) => {
   if (current) {
     return null;

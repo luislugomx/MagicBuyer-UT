@@ -7,24 +7,26 @@ import {
 import { log } from "../core/logger";
 import { pageGlobal } from "../core/page";
 import { afterTax, formatCoins, toInt } from "../core/prices";
-import { qs, setText } from "./dom";
+import { onLanguageChange, t } from "../i18n";
+import { escapeHtml, qs, setText } from "./dom";
 import { showTargetTab, togglePanel } from "./panel";
 import { importSnapshot } from "./pages/target";
 
-// Intégrations dans l'interface du web app EA (FC 27).
+// Integrations into the EA web app interface (FC 27).
 
 const TAB_CLASS = "mb-native-tab";
 let delegatesBound = false;
 let currentSearchController = null;
+let languageWatched = false;
 
-// ------------------------------------------------ bouton dans la barre d'onglets
+// ------------------------------------------------ button in the tab bar
 
 const bindDelegates = () => {
   if (delegatesBound) {
     return;
   }
   delegatesBound = true;
-  // Capture au niveau document : EA ne voit jamais les clics sur nos boutons.
+  // Capture at document level: EA never sees clicks on our buttons.
   ["pointerdown", "mousedown", "touchstart", "touchend", "mouseup", "pointerup"].forEach((type) =>
     document.addEventListener(
       type,
@@ -65,7 +67,7 @@ export const ensureTabButton = () => {
   bar.appendChild(button);
 };
 
-// ------------------------------------------------- marché des transferts EA
+// ------------------------------------------------- EA Transfer Market
 
 const readController = (ctrl) => {
   const viewmodel = ctrl && ctrl.viewmodel;
@@ -80,11 +82,15 @@ const captureController = (ctrl, quiet) => {
   if (snapshot) {
     setLastEaSearch(snapshot);
     if (!quiet) {
-      log.info("Recherche du marché EA capturée.");
+      log.info(t("ui.ea.log.captured"));
     }
   }
   return snapshot;
 };
+
+const searchBarHtml = () => `<strong>⚡ MagicBuyer</strong>
+    <button type="button" data-mb-ea="snipe">${escapeHtml(t("ui.ea.bar.snipe"))}</button>
+    <button type="button" class="is-ghost" data-mb-ea="open">${escapeHtml(t("ui.ea.bar.open"))}</button>`;
 
 const injectSearchBar = (ctrl) => {
   let rootEl = null;
@@ -100,9 +106,7 @@ const injectSearchBar = (ctrl) => {
   const host = rootEl.querySelector(".ut-content") || rootEl;
   const bar = document.createElement("div");
   bar.className = "mb-ea-bar";
-  bar.innerHTML = `<strong>⚡ MagicBuyer</strong>
-    <button type="button" data-mb-ea="snipe">Sniper cette recherche</button>
-    <button type="button" class="is-ghost" data-mb-ea="open">Ouvrir</button>`;
+  bar.innerHTML = searchBarHtml();
   bar.addEventListener("click", (event) => {
     const button = event.target.closest("[data-mb-ea]");
     if (!button) {
@@ -116,17 +120,18 @@ const injectSearchBar = (ctrl) => {
     }
     const snapshot = captureController(currentSearchController || ctrl, true);
     if (!snapshot) {
-      log.warn("Impossible de lire les critères de la recherche EA.");
+      log.warn(t("ui.ea.log.readFailed"));
       return;
     }
-    // Un filtre déjà configuré n'est jamais écrasé : on en crée un nouveau.
+    // An already configured filter is never overwritten: a new one is created.
     const active = getActiveFilter();
     importSnapshot(snapshot, { asNew: !!(active && filterHasTarget(active)) });
     const filter = getActiveFilter();
+    const name = filter ? filter.name : t("ui.ea.log.defaultFilter");
     log.success(
-      `Recherche EA importée dans « ${filter ? filter.name : "le filtre"} »${
-        filter && filter.maxBuy ? ` · achat max ${formatCoins(filter.maxBuy)}` : " · indique ton prix d'achat max"
-      }.`
+      filter && filter.maxBuy
+        ? t("ui.ea.log.importedWithMax", { name, price: formatCoins(filter.maxBuy) })
+        : t("ui.ea.log.importedNoMax", { name })
     );
     showTargetTab();
   });
@@ -164,7 +169,29 @@ const hookMarketSearch = () => {
   return true;
 };
 
-// --------------------------------------- panneau de mise en vente : net + bénéfice
+// --------------------------------------- listing panel: net + profit
+
+const taxInfoHtml = () =>
+  `<span>${escapeHtml(t("ui.ea.tax.net"))} <b data-mb-net>—</b></span><span>${escapeHtml(t("ui.ea.tax.profit"))} <b data-mb-profit>—</b></span>`;
+
+// Injected static texts are rendered again in the new language; values are refilled on the next tick.
+const watchLanguage = () => {
+  if (languageWatched) {
+    return;
+  }
+  languageWatched = true;
+  onLanguageChange(() => {
+    document.querySelectorAll(".mb-ea-bar").forEach((bar) => {
+      bar.innerHTML = searchBarHtml();
+    });
+    document.querySelectorAll(".mb-tax-info").forEach((info) => {
+      info.innerHTML = taxInfoHtml();
+    });
+    try {
+      paintQuickList();
+    } catch (e) {}
+  });
+};
 
 const paintQuickList = () => {
   document.querySelectorAll(".ut-quick-list-panel-view").forEach((panel) => {
@@ -177,7 +204,7 @@ const paintQuickList = () => {
     if (!info) {
       info = document.createElement("div");
       info.className = "mb-tax-info";
-      info.innerHTML = `<span>Net après taxe <b data-mb-net>—</b></span><span>Bénéfice <b data-mb-profit>—</b></span>`;
+      info.innerHTML = taxInfoHtml();
       const row = binInput.closest(".panelActionRow") || binInput.parentElement;
       if (row && row.parentNode) {
         row.parentNode.insertBefore(info, row.nextSibling);
@@ -198,6 +225,7 @@ const paintQuickList = () => {
 };
 
 export const tickEaHooks = () => {
+  watchLanguage();
   try {
     ensureTabButton();
   } catch (e) {}

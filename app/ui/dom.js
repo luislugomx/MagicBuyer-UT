@@ -1,3 +1,5 @@
+import { numberLocale } from "../i18n";
+
 export const escapeHtml = (value) =>
   String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -15,7 +17,7 @@ export const fromHtml = (html) => {
   return template.content.firstElementChild;
 };
 
-// Ne touche au DOM que si le contenu change (évite les boucles de mutations).
+// Only touches the DOM when the content changes (avoids mutation loops).
 export const setText = (el, text) => {
   if (el && el.textContent !== String(text)) {
     el.textContent = String(text);
@@ -43,9 +45,11 @@ export const debounce = (fn, wait) => {
   };
 };
 
+// 24-hour clock in every language so the time fits the fixed-width log column.
 export const formatTime = (timestamp) =>
-  new Date(timestamp).toLocaleTimeString("fr-FR", {
+  new Date(timestamp).toLocaleTimeString(numberLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hourCycle: "h23",
   });

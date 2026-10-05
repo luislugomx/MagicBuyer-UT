@@ -1,5 +1,5 @@
-// Sons générés (WebAudio) + maintien de l'onglet actif en arrière-plan.
-// Aucun fichier externe : rien ne peut échouer au chargement.
+// Generated sounds (WebAudio) + keeping the tab active in the background.
+// No external files: nothing can fail to load.
 
 let context = null;
 let keepAliveNodes = null;
@@ -17,7 +17,7 @@ const getContext = () => {
   return context;
 };
 
-// À appeler depuis un clic (Démarrer, tester le son) : Chrome exige un geste utilisateur.
+// Call from a click (Start, test sound): Chrome requires a user gesture.
 export const unlockAudio = () => {
   const ctx = getContext();
   if (ctx && ctx.state === "suspended" && typeof ctx.resume === "function") {
@@ -84,8 +84,8 @@ export const playTone = (kind, volume = 0.6) => {
   }
 };
 
-// Chrome ralentit fortement les minuteurs d'un onglet caché (1 réveil par minute après
-// 5 min). Un signal audio quasi nul (inaudible) garde l'onglet "actif" pendant le bot.
+// Chrome heavily throttles timers in a hidden tab (1 wake-up per minute after
+// 5 min). A near-silent (inaudible) audio signal keeps the tab "active" while the bot runs.
 export const startKeepAlive = () => {
   const ctx = unlockAudio();
   if (!ctx || keepAliveNodes) {

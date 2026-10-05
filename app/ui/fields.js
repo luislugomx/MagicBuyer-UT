@@ -2,12 +2,13 @@ import { getActiveFilter, getRotation, setRotation, updateFilter } from "../core
 import { floorPrice, parseCoinsInput, stepPrice } from "../core/prices";
 import { describeRange, isValidRange, parseRange } from "../core/ranges";
 import { getSetting, setSetting } from "../core/settings";
+import { t } from "../i18n";
 import { escapeHtml, qsa } from "./dom";
 
-// Liaison des champs : data-bind="s:chemin.du.reglage" (réglages), "f:champ" (filtre actif),
-// "r:champ" (rotation des filtres). data-kind = price | int | float | range | text | toggle | select.
+// Field binding: data-bind="s:setting.path" (settings), "f:field" (active filter),
+// "r:field" (filter rotation). data-kind = price | int | float | range | text | toggle | select.
 
-// Champs "virtuels" d'un filtre (ex. poste/zone combinés) : { read(filter), write(value) }.
+// "Virtual" filter fields (e.g. combined position/zone): { read(filter), write(value) }.
 const virtualFilter = {};
 
 export const registerVirtualFilterFields = (map) => {
@@ -50,8 +51,8 @@ const writeBound = (bind, value) => {
 };
 
 const hintHtml = (hint) => (hint ? `<p class="mb-hint">${hint}</p>` : "");
-// Attributs du bloc d'un champ. showIf : "f:priceMode=futbin", "s:sell.priceMode!=fixed",
-// plusieurs valeurs possibles "a|b" ; le champ est masqué quand la condition est fausse.
+// Attributes of a field block. showIf: "f:priceMode=futbin", "s:sell.priceMode!=fixed",
+// several values allowed with "a|b"; the field is hidden when the condition is false.
 const fieldAttrs = (opts) =>
   `class="mb-field${opts.wide ? " is-wide" : ""}${opts.key ? " is-key" : ""}"${
     opts.showIf ? ` data-show-if="${escapeHtml(opts.showIf)}"` : ""
@@ -66,9 +67,9 @@ export const priceField = (opts) => `
   <div ${fieldAttrs(opts)}>
     <div class="mb-label"><span>${opts.label}</span><em data-extra="${opts.bind}"></em></div>
     <div class="mb-price">
-      <button type="button" class="mb-step" data-step="-1" data-for="${opts.bind}" aria-label="Diminuer d'un palier">−</button>
-      <input class="mb-input" data-bind="${opts.bind}" data-kind="price" inputmode="text" autocomplete="off" placeholder="${escapeHtml(opts.placeholder || "ex. 45000 ou 45k")}" aria-label="${escapeHtml(opts.label)}" />
-      <button type="button" class="mb-step" data-step="1" data-for="${opts.bind}" aria-label="Augmenter d'un palier">+</button>
+      <button type="button" class="mb-step" data-step="-1" data-for="${opts.bind}" aria-label="${escapeHtml(t("pages.fields.price.decrease"))}">−</button>
+      <input class="mb-input" data-bind="${opts.bind}" data-kind="price" inputmode="text" autocomplete="off" placeholder="${escapeHtml(opts.placeholder || t("pages.fields.price.placeholder"))}" aria-label="${escapeHtml(opts.label)}" />
+      <button type="button" class="mb-step" data-step="1" data-for="${opts.bind}" aria-label="${escapeHtml(t("pages.fields.price.increase"))}">+</button>
     </div>
     ${hintHtml(opts.hint)}
   </div>`;
@@ -112,17 +113,17 @@ export const selectField = (opts) => `
     ${hintHtml(opts.hint)}
   </div>`;
 
-// ------------------------------------------------------------------ lecture
+// ------------------------------------------------------------------ reading
 
 const parseInput = (el) => {
   const kind = el.dataset.kind;
   const raw = el.value;
   if (kind === "price") {
-    // Toujours un prix EA valide, arrondi vers le bas (jamais au-dessus de la saisie).
+    // Always a valid EA price, rounded down (never above what was typed).
     return { ok: true, value: floorPrice(parseCoinsInput(raw)) };
   }
   if (kind === "int") {
-    // "2.5" ou "2,5" → 3 (arrondi), jamais 25 ; les espaces sont ignorés ("50 565 123").
+    // "2.5" or "2,5" → 3 (rounded), never 25; spaces are ignored ("50 565 123").
     const parsed = parseFloat(String(raw).replace(/\s/g, "").replace(",", "."));
     let n = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
     if (el.dataset.max != null) {
@@ -176,7 +177,7 @@ const paintExtra = (root, el, value) => {
       extra.textContent = range
         ? range.min === range.max
           ? `${+range.min.toFixed(2)}`
-          : `${+range.min.toFixed(2)} à ${+range.max.toFixed(2)}`
+          : t("pages.fields.range.between", { min: +range.min.toFixed(2), max: +range.max.toFixed(2) })
         : "";
     }
   }
@@ -198,7 +199,7 @@ const matchesShowIf = (rule) => {
   return match[2] === "=" ? hit : !hit;
 };
 
-// Affiche / masque les champs conditionnels (data-show-if).
+// Shows / hides conditional fields (data-show-if).
 export const refreshVisibility = (root) => {
   qsa(root, "[data-show-if]").forEach((el) => {
     const hidden = !matchesShowIf(el.dataset.showIf);
@@ -208,7 +209,7 @@ export const refreshVisibility = (root) => {
   });
 };
 
-// Remet les champs à jour depuis les réglages (sans écraser le champ en cours de saisie).
+// Refreshes the fields from the settings (without overwriting the field being edited).
 export const refreshFields = (root) => {
   refreshVisibility(root);
   qsa(root, "[data-bind]").forEach((el) => {
@@ -218,7 +219,7 @@ export const refreshFields = (root) => {
       if (el.getAttribute("aria-checked") !== String(on)) {
         el.setAttribute("aria-checked", String(on));
       }
-      el.textContent = on ? "Activé" : "Désactivé";
+      el.textContent = on ? t("pages.fields.toggle.on") : t("pages.fields.toggle.off");
       return;
     }
     if (el === document.activeElement) {
@@ -249,8 +250,8 @@ export const bindFields = (root, extras = {}) => {
       writeBound(el.dataset.bind, parsed.value);
     }
   };
-  // Pendant la frappe : validation et aperçu seulement. L'enregistrement se fait à la
-  // validation (Entrée ou sortie du champ) : un bot en marche ne lit jamais une saisie à moitié tapée.
+  // While typing: validation and preview only. The value is saved on commit (Enter or
+  // leaving the field), so a running bot never reads a half-typed value.
   root.addEventListener("input", (event) => {
     const el = event.target;
     if (!el || !el.dataset || !el.dataset.bind || el.dataset.kind === "select") {

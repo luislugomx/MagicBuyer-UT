@@ -26,10 +26,10 @@ const boot = () => {
       ensurePanel();
       ensureHud();
     } catch (e) {
-      console.warn("[MagicBuyer] interface", e);
+      console.warn("[MagicBuyer] UI", e);
     }
     tickEaHooks();
-    // Intégrations FUTBIN dans le web app : installées dès que les classes EA existent.
+    // FUTBIN integrations in the web app: installed as soon as the EA classes exist.
     [hookCardPrices, hookQuickList, tickSbc].forEach((step) => {
       try {
         step();
@@ -44,7 +44,7 @@ const boot = () => {
     try {
       runMigrations();
     } catch (e) {
-      console.warn("[MagicBuyer] migration des réglages", e);
+      console.warn("[MagicBuyer] settings migration", e);
     }
     injectStyles();
     tick();
@@ -60,7 +60,7 @@ const boot = () => {
     window.addEventListener("load", start, { once: true });
   }
   window.addEventListener("beforeunload", flushSettings);
-  console.info(`[MagicBuyer] v${VERSION} chargé`);
+  console.info(`[MagicBuyer] v${VERSION} loaded`);
 };
 
 if (isFutbinPage()) {

@@ -1,6 +1,6 @@
 import { getPage } from "./core/page";
 
-// Valeurs du web app FC 27 (lues dans la page, avec repli sur les valeurs connues).
+// FC 27 web app values (read from the page, falling back to known values).
 export const DEFAULT_FUT_YEAR = "2027";
 export const DEFAULT_FUT_GUID = "27A3C9F1-6B2E-4D7A-8C1F-2E9B5A4D6C7E";
 export const DEFAULT_FUT_RESOURCE_ROOT = "https://www.ea.com";

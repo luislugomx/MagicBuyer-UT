@@ -1,11 +1,12 @@
 import { pageGlobal } from "../core/page";
 import { formatCoins } from "../core/prices";
 import { getSettings, onSettingsChange } from "../core/settings";
+import { numberLocale, onLanguageChange, t } from "../i18n";
 import { currentPrice, getPriceRecord, onPriceUpdate, trackPrice } from "../prices/priceService";
 
-// Étiquette de prix FUTBIN en haut de chaque carte joueur rendue par le web app (club, marché,
-// transferts, équipe, DCE…). Seules les cartes visibles à l'écran sont suivies ; le prix se met
-// à jour tout seul quand FUTBIN change. Clic sur l'étiquette = page FUTBIN de la carte.
+// FUTBIN price badge on top of every player card rendered by the web app (club, market,
+// transfers, squad, SBC…). Only cards visible on screen are tracked; the price updates
+// by itself when FUTBIN changes. Clicking the badge opens the card's FUTBIN page.
 
 const BADGE = "mb-card-price";
 const DISPLAY_MAX_AGE = 60 * 60 * 1000;
@@ -24,7 +25,7 @@ const call = (target, method) => {
   }
 };
 
-// Carte joueur échangeable ou non, hors concepts et prêts.
+// Player card, tradeable or not, excluding concepts and loans.
 const eligibleId = (item) => {
   if (!item || !call(item, "isValid") || !call(item, "isPlayer") || item.concept || call(item, "isLimitedUse")) {
     return 0;
@@ -42,9 +43,17 @@ const itemHint = (item) => {
   }
 };
 
+const decimalSeparator = () => {
+  try {
+    return (1.5).toLocaleString(numberLocale()).charAt(1) || ".";
+  } catch (e) {
+    return ".";
+  }
+};
+
 export const shortCoins = (value) => {
   const n = Number(value) || 0;
-  const trim = (text) => text.replace(/[.,]?0+$/, "").replace(".", ",");
+  const trim = (text) => text.replace(/[.,]?0+$/, "").replace(".", decimalSeparator());
   if (n >= 1000000) {
     return `${trim((n / 1000000).toFixed(n >= 10000000 ? 1 : 2))}M`;
   }
@@ -92,7 +101,7 @@ const createBadge = (root) => {
   return badge;
 };
 
-// L'étiquette est positionnée par rapport à la carte : on ne touche au style EA que si besoin.
+// The badge is positioned relative to the card: EA styles are only touched when needed.
 const ensurePositioned = (root) => {
   if (root.__mbPositioned || !root.isConnected) {
     return;
@@ -130,11 +139,13 @@ const paint = (root, state) => {
   badge.classList.toggle("is-suspect", suspect);
   badge.classList.toggle("is-stale", !!(price && record && Date.now() - record.fetchedAt > 10 * 60 * 1000));
   badge.title = price
-    ? `FUTBIN ${formatCoins(price)} · lu il y a ${ago(record.fetchedAt)}` +
-      (record.updatedAgoSec ? ` (mis à jour par FUTBIN il y a ${ago(record.fetchedAt - record.updatedAgoSec * 1000)})` : "") +
-      (suspect ? ` · saut à ${formatCoins(record.suspect.price)} en vérification` : "") +
-      " · clic : page FUTBIN"
-    : "Prix FUTBIN en cours de lecture…";
+    ? t("ui.cardPrice.title.read", { price: formatCoins(price), ago: ago(record.fetchedAt) }) +
+      (record.updatedAgoSec
+        ? ` ${t("ui.cardPrice.title.updated", { ago: ago(record.fetchedAt - record.updatedAgoSec * 1000) })}`
+        : "") +
+      (suspect ? ` · ${t("ui.cardPrice.title.suspect", { price: formatCoins(record.suspect.price) })}` : "") +
+      ` · ${t("ui.cardPrice.title.click")}`
+    : t("ui.cardPrice.title.loading");
 };
 
 const index = (id, root, add) => {
@@ -203,7 +214,7 @@ const ensureObserver = () => {
   return observer;
 };
 
-// Cartes retirées de la page : on arrête leur suivi.
+// Cards removed from the page: stop tracking them.
 const sweep = () => {
   byId.forEach((roots) => {
     Array.from(roots).forEach((root) => {
@@ -278,6 +289,8 @@ export const hookCardPrices = () => {
         clearAll();
       }
     });
+    // Badge tooltips are text: repaint them in the new language.
+    onLanguageChange(() => byId.forEach((roots, id) => repaintId(id)));
     sweepTimer = sweepTimer || setInterval(sweep, 5000);
   }
   if (hooked) {

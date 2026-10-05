@@ -1,4 +1,4 @@
-// Requêtes hors EA (FUTBIN, Discord, Telegram) via GM_xmlhttpRequest (pas de CORS).
+// Non-EA requests (FUTBIN, Discord, Telegram) through GM_xmlhttpRequest (no CORS).
 
 const gmRequest = () => {
   if (typeof GM_xmlhttpRequest === "function") {

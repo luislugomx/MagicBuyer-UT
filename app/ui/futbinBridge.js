@@ -1,6 +1,6 @@
-// Pont FUTBIN : si une requête directe est bloquée (Cloudflare), la page FUTBIN est ouverte
-// dans une iframe cachée. Le script tourne aussi sur futbin.com : dans l'iframe, il renvoie
-// le HTML (ou le JSON) de la page au web app via postMessage. Aucune donnée n'est modifiée.
+// FUTBIN bridge: if a direct request is blocked (Cloudflare), the FUTBIN page is opened
+// in a hidden iframe. The script also runs on futbin.com: inside the iframe, it sends
+// the page's HTML (or JSON) back to the web app via postMessage. No data is modified.
 
 const MSG = "MB_FUTBIN";
 const EA_ORIGIN = "https://www.ea.com";
@@ -22,7 +22,7 @@ const isFramed = () => {
   }
 };
 
-// Le HTML n'est envoyé qu'au web app EA (jamais à un autre site qui afficherait FUTBIN en iframe).
+// The HTML is only sent to the EA web app (never to another site embedding FUTBIN in an iframe).
 const postToParent = (payload) => {
   try {
     window.parent.postMessage(Object.assign({ source: MSG }, payload), EA_ORIGIN);
@@ -41,14 +41,14 @@ const framedByEa = () => {
 const bodyText = () =>
   (document.body && (document.body.innerText || document.body.textContent)) || "";
 
-// Attend que la page ait réellement chargé son contenu (prix, cartes de l'équipe).
+// Waits until the page has actually loaded its content (prices, squad cards).
 const pageReady = () => {
   const path = location.pathname;
   if (/\/player\//.test(path)) {
     return !!document.querySelector(".price-box [class*='lowest-price']");
   }
   if (/squad|sbc/i.test(path)) {
-    // Équipe fournie en JSON dans la page (rendu React) : prête dès que ce JSON est là.
+    // Squad provided as JSON in the page (React render): ready as soon as that JSON is there.
     return (
       !!document.querySelector("script[data-react-data]") ||
       document.querySelectorAll("img[src*='/players/']").length >= 11
@@ -106,7 +106,7 @@ export const bootFutbinBridge = () => {
 
 let chain = Promise.resolve();
 
-// Charge une URL FUTBIN dans une iframe cachée et renvoie { kind, url, text } ou null.
+// Loads a FUTBIN URL in a hidden iframe and returns { kind, url, text } or null.
 export const fetchViaIframe = (url, timeoutMs = 15000) => {
   chain = chain
     .catch(() => {})
@@ -148,7 +148,7 @@ export const fetchViaIframe = (url, timeoutMs = 15000) => {
           };
           const timer = setTimeout(() => finish(null), timeoutMs);
           window.addEventListener("message", onMessage);
-          // Page refusée dans une iframe (X-Frame-Options) : le chargement se termine sans message.
+          // Page refused in an iframe (X-Frame-Options): loading ends without a message.
           iframe.addEventListener("load", () => setTimeout(() => finish(null), 4000));
           iframe.src = url;
           document.body.appendChild(iframe);

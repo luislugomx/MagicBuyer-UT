@@ -2,8 +2,8 @@ import { loadJson, saveJson } from "./storage";
 
 export const TIMING_PRESETS = {
   prudent: {
-    label: "Prudent",
-    hint: "Rythme lent, pauses longues : le moins risqué pour le compte.",
+    labelKey: "pages.timing.preset.prudent",
+    hintKey: "pages.timing.preset.prudent.hint",
     values: {
       wait: "8-14",
       maxPerMinute: 6,
@@ -13,8 +13,8 @@ export const TIMING_PRESETS = {
     },
   },
   normal: {
-    label: "Normal",
-    hint: "Bon compromis entre réactivité et discrétion.",
+    labelKey: "pages.timing.preset.normal",
+    hintKey: "pages.timing.preset.normal.hint",
     values: {
       wait: "5-9",
       maxPerMinute: 10,
@@ -24,8 +24,8 @@ export const TIMING_PRESETS = {
     },
   },
   rapide: {
-    label: "Rapide",
-    hint: "Snipe très réactif, mais captchas et blocages EA plus fréquents.",
+    labelKey: "pages.timing.preset.rapide",
+    hintKey: "pages.timing.preset.rapide.hint",
     values: {
       wait: "3-5",
       maxPerMinute: 15,
@@ -123,6 +123,7 @@ export const DEFAULT_SETTINGS = {
     logHeight: 34,
     logFilter: "all",
     activeTab: "target",
+    language: "auto",
   },
 };
 

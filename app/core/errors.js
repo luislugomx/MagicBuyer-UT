@@ -1,6 +1,7 @@
+import { t } from "../i18n";
 import { errorCode } from "./page";
 
-// Classement des réponses d'erreur UTAS de FC 27.
+// Classification of FC 27 UTAS error responses.
 export const KIND = {
   CAPTCHA: "captcha",
   AUTH: "auth",
@@ -29,25 +30,25 @@ export const responseCode = (response) => {
 export const classify = (response) => {
   const code = responseCode(response);
   if (response && response.timeout) {
-    return { code, kind: KIND.TIMEOUT, label: "pas de réponse d'EA (délai dépassé)" };
+    return { code, kind: KIND.TIMEOUT, label: t("core.error.timeout") };
   }
   if (code === errorCode("CAPTCHA_REQUIRED")) {
-    return { code, kind: KIND.CAPTCHA, label: "captcha demandé par EA" };
+    return { code, kind: KIND.CAPTCHA, label: t("core.error.captcha") };
   }
   if (code === 401) {
-    return { code, kind: KIND.AUTH, label: "session EA expirée" };
+    return { code, kind: KIND.AUTH, label: t("core.error.auth") };
   }
   if (code === errorCode("ACCOUNT_BANNED") || code === errorCode("UNRECOVERABLE")) {
-    return { code, kind: KIND.BANNED, label: "compte bloqué par EA" };
+    return { code, kind: KIND.BANNED, label: t("core.error.banned") };
   }
   if (code === errorCode("LOCKED_TRANSFER_MARKET")) {
-    return { code, kind: KIND.LOCKED, label: "marché des transferts verrouillé (soft ban)" };
+    return { code, kind: KIND.LOCKED, label: t("core.error.locked") };
   }
   if (code === 429) {
-    return { code, kind: KIND.RATE, label: "trop de requêtes" };
+    return { code, kind: KIND.RATE, label: t("core.error.rate") };
   }
   if (code === 512 || code === 521) {
-    return { code, kind: KIND.BLOCKED, label: "EA bloque temporairement les requêtes" };
+    return { code, kind: KIND.BLOCKED, label: t("core.error.blocked") };
   }
   if (
     code === errorCode("PERMISSION_DENIED") ||
@@ -55,18 +56,18 @@ export const classify = (response) => {
     code === 426 ||
     code === 409
   ) {
-    return { code, kind: KIND.GONE, label: "carte déjà partie (achetée ou expirée)" };
+    return { code, kind: KIND.GONE, label: t("core.error.gone") };
   }
   if (code === errorCode("NOT_ENOUGH_CREDIT")) {
-    return { code, kind: KIND.FUNDS, label: "coins insuffisants" };
+    return { code, kind: KIND.FUNDS, label: t("core.error.funds") };
   }
   if (code === errorCode("DESTINATION_FULL")) {
-    return { code, kind: KIND.FULL, label: "pile de destination pleine (non attribués / transferts)" };
+    return { code, kind: KIND.FULL, label: t("core.error.full") };
   }
-  return { code, kind: KIND.OTHER, label: code ? `erreur ${code}` : "erreur inconnue" };
+  return { code, kind: KIND.OTHER, label: code ? t("core.error.code", { code }) : t("core.error.unknown") };
 };
 
-// Erreurs qui doivent arrêter le bot immédiatement.
+// Errors that must stop the bot immediately.
 export const isFatal = (kind) =>
   kind === KIND.CAPTCHA || kind === KIND.AUTH || kind === KIND.BANNED || kind === KIND.LOCKED;
 

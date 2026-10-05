@@ -1,15 +1,15 @@
-// Lecture des pages FUTBIN FC 27. Format vérifié (septembre 2026) :
-// - recherche JSON : /players/search?targetPage=PLAYER_PAGE&query=…&year=27&evolutions=false
+// Reading of FUTBIN FC 27 pages. Format verified (September 2026):
+// - JSON search: /players/search?targetPage=PLAYER_PAGE&query=…&year=27&evolutions=false
 //   → [{ id, name, position, ratingSquare: { rating }, location: { url },
 //        playerImage: { fixed: { url: { image1x: ".../players/231747.png" } } } }]
-// - page joueur : /27/player/<id>/<slug> → .price-box.platform-ps-only|platform-pc-only
-//   contenant .lowest-price-1, .lowest-price-2… (secours : phrase « current price on FUT is … »)
-// Les pages d'équipe (solutions SBC) sont lues de façon tolérante : liens joueur + images.
+// - player page: /27/player/<id>/<slug> → .price-box.platform-ps-only|platform-pc-only
+//   containing .lowest-price-1, .lowest-price-2… (fallback: the sentence "current price on FUT is …")
+// Squad pages (SBC solutions) are read leniently: player links + images.
 
 export const FUTBIN_ORIGIN = "https://www.futbin.com";
 
-// Premier montant d'un texte : "227,000", "1.2M", "12.5K", "227 000" (espace insécable).
-// Les groupes de milliers ne sont jamais joints à travers un espace normal : "15,000 15,250" = 15 000.
+// First amount in a text: "227,000", "1.2M", "12.5K", "227 000" (non-breaking space).
+// Thousand groups are never joined across a regular space: "15,000 15,250" = 15,000.
 const NUMBER_RE = /(\d{1,3}(?:[.,\u00a0]\d{3})+|\d+(?:[.,]\d{1,2})?)\s?([KM])?(?![A-Z])/;
 const GROUPED_RE = /^\d{1,3}(?:[.,\u00a0]\d{3})+$/;
 
@@ -37,10 +37,10 @@ export const parseCoins = (value) => {
   return n > 0 ? Math.round(n) : 0;
 };
 
-// Prix plausible pour une carte du marché (limites EA : 150 à 15 millions).
+// Plausible price for a market card (EA limits: 150 to 15 million).
 export const isPlausiblePrice = (price) => price >= 150 && price <= 15000000;
 
-// Identifiant EA dans une URL d'image FUTBIN : .../players/231747.png ou .../players/p50563123.png
+// EA id in a FUTBIN image URL: .../players/231747.png or .../players/p50563123.png
 export const eaIdFromImage = (url) => {
   const match = String(url || "").match(/\/players\/p?(\d{3,12})\.(?:png|webp|jpe?g)/i);
   return match ? Number(match[1]) : 0;
@@ -62,7 +62,7 @@ export const absoluteUrl = (path) => {
   return `${FUTBIN_ORIGIN}${text.startsWith("/") ? "" : "/"}${text}`;
 };
 
-// Page de blocage Cloudflare (ou erreur 403 FUTBIN) plutôt qu'une vraie page.
+// Cloudflare block page (or FUTBIN 403 error) rather than a real page.
 export const looksBlocked = (text) => {
   const body = String(text || "");
   if (/price-box|"playerImage"/.test(body)) {
@@ -73,7 +73,7 @@ export const looksBlocked = (text) => {
   );
 };
 
-// ------------------------------------------------------------------ recherche
+// ------------------------------------------------------------------ search
 
 export const parseSearchJson = (raw) => {
   let data = raw;
@@ -118,9 +118,9 @@ export const parseSearchJson = (raw) => {
     .filter((row) => row && row.futbinId);
 };
 
-// ------------------------------------------------------------- page joueur
+// ------------------------------------------------------------- player page
 
-// "5 mins ago", "1 hour ago", "a few seconds ago", "just now" → secondes (null si absent).
+// "5 mins ago", "1 hour ago", "a few seconds ago", "just now" → seconds (null when missing).
 export const parseAgo = (text) => {
   const body = String(text || "");
   if (/just now|a few seconds ago|à l'instant/i.test(body)) {
@@ -136,10 +136,10 @@ export const parseAgo = (text) => {
   return n * factor;
 };
 
-// Espaces normaux fusionnés ; les espaces insécables (séparateurs de milliers) sont conservés.
+// Regular whitespace collapsed; non-breaking spaces (thousand separators) are kept.
 const textOf = (el) => (el ? String(el.textContent || "").replace(/[ \t\n\r\f\v]+/g, " ").trim() : "");
 
-// Page de vérification Cloudflare lue comme document (titre + marqueurs du défi).
+// Cloudflare verification page read as a document (title + challenge markers).
 const blockedDocument = (doc, bodyText) =>
   looksBlocked(`${doc.title || ""} ${bodyText}`) ||
   !!doc.querySelector("#challenge-platform, #challenge-form, #cf-wrapper, .cf-browser-verification");
@@ -154,7 +154,7 @@ const priceFromSentence = (text, platform) => {
   return parseCoins(platform === "pc" ? match[3] : match[1]);
 };
 
-// platform : "console" (PlayStation + Xbox, marché commun) ou "pc".
+// platform: "console" (PlayStation + Xbox, shared market) or "pc".
 export const parsePlayerDocument = (doc, platform = "console") => {
   const empty = { price: 0, prices: [], updatedAgoSec: null, pageEaId: 0, blocked: false };
   if (!doc || typeof doc.querySelector !== "function") {
@@ -172,7 +172,7 @@ export const parsePlayerDocument = (doc, platform = "console") => {
   let prices = [];
   let updatedAgoSec = null;
   if (box) {
-    // Uniquement les éléments de classe exacte "lowest-price-N" (pas un conteneur "lowest-prices-…").
+    // Only elements with the exact class "lowest-price-N" (not a "lowest-prices-…" container).
     prices = Array.from(box.querySelectorAll("[class*='lowest-price-']"))
       .filter((el) => Array.from(el.classList || []).some((name) => /^lowest-price-\d+$/.test(name)))
       .map((el) => parseCoins(textOf(el)))
@@ -183,11 +183,11 @@ export const parsePlayerDocument = (doc, platform = "console") => {
       scope = scope.parentElement;
     }
   }
-  // Prix incohérents (le moins cher bien au-dessus du suivant) : lecture refusée plutôt qu'un prix faux.
+  // Inconsistent prices (cheapest far above the next one): read rejected rather than a wrong price.
   const consistent = !(prices.length >= 2 && prices[0] > prices[1] * 2);
   const sentence = priceFromSentence(bodyText, platform);
   const price = consistent && prices[0] ? prices[0] : !prices.length && isPlausiblePrice(sentence) ? sentence : 0;
-  // Identifiant EA déclaré par la page (vérifié par l'appelant s'il est présent).
+  // EA id declared by the page (checked by the caller when present).
   let pageEaId = 0;
   const info = doc.getElementById ? doc.getElementById("page-info") : null;
   if (info) {
@@ -199,11 +199,11 @@ export const parsePlayerDocument = (doc, platform = "console") => {
   return { price, prices, updatedAgoSec, pageEaId, blocked: false };
 };
 
-// ------------------------------------------------------------ page d'équipe
+// ------------------------------------------------------------ squad page
 
 const FORMATION_RE = /\b([3-5])\s*-\s*([1-5])\s*-\s*([1-5])(?:\s*-\s*([1-5]))?(?:\s*-\s*([1-5]))?(?:\s*\(\s*(\d)\s*\))?/;
 
-// "4-3-3(4)" → "4334", "4-2-3-1" → "4231" (sert à retrouver la formation EA).
+// "4-3-3(4)" → "4334", "4-2-3-1" → "4231" (used to find the EA formation).
 export const formationKey = (text) => {
   const match = String(text || "").match(FORMATION_RE);
   if (!match) {
@@ -264,7 +264,7 @@ const findName = (card, link, image) => {
   return slug && slug !== "player" ? slug.replace(/-/g, " ") : "";
 };
 
-// Remonte jusqu'au bloc "carte" qui contient une seule carte joueur.
+// Walks up to the "card" block that holds a single player card.
 const cardRoot = (el) => {
   let node = el;
   for (let depth = 0; depth < 6 && node && node.parentElement; depth += 1) {
@@ -280,8 +280,8 @@ const cardRoot = (el) => {
 
 const playerImages = (root) => Array.from(root.querySelectorAll("img[src*='/players/']")).filter((img) => eaIdFromImage(img.getAttribute("src")));
 
-// Terrain de la solution : bloc "pitch" s'il contient les 11 cartes, sinon le plus petit bloc
-// qui contient au moins 11 cartes (évite les joueurs des encarts "populaires" de la page).
+// Solution pitch: the "pitch" block if it holds the 11 cards, otherwise the smallest block
+// holding at least 11 cards (skips players from the page's "popular" panels).
 const pitchScope = (doc) => {
   const named = ["[class*='pitch']", "[class*='squad-field']", "[id*='pitch']"]
     .map((selector) => doc.querySelector(selector))
@@ -368,17 +368,17 @@ export const parseSquadDocument = (doc) => {
       url: link ? absoluteUrl(link.getAttribute("href")) : "",
     });
   });
-  // Une solution SBC = 11 titulaires (les remplaçants éventuels viennent après).
+  // An SBC solution = 11 starters (any substitutes come after).
   result.players = result.players.slice(0, 11);
   return result;
 };
 
-// ------------------------------------------- page d'équipe : données JSON (FC 27)
-// Les pages d'équipe FUTBIN (solutions DCE, équipes) sont rendues par React à partir d'un JSON embarqué :
-// <script type="application/json" data-react-data>{ squadData: { squad: [{ value: "cardlid1" }, {joueur}, …] },
+// ------------------------------------------- squad page: JSON data (FC 27)
+// FUTBIN squad pages (SBC solutions, squads) are rendered by React from an embedded JSON:
+// <script type="application/json" data-react-data>{ squadData: { squad: [{ value: "cardlid1" }, {player}, …] },
 //   formationData: { formationSelected: { displayName: "4-3-3(4)", positions: [{ value: "cardlid1" }, { value: "LW" }, …] } } }
-// Chaque joueur : playerName, playerRating, playerImage (id EA dans l'URL), id.playerCardId (id FUTBIN),
-// possiblePositions, price.ps / price.pc, playerLocation. Un poste absent (ex. poste bloqué du DCE) est omis.
+// Each player: playerName, playerRating, playerImage (EA id in the URL), id.playerCardId (FUTBIN id),
+// possiblePositions, price.ps / price.pc, playerLocation. A missing slot (e.g. a locked SBC slot) is omitted.
 
 export const extractReactData = (text) => {
   const body = String(text || "");
@@ -468,7 +468,7 @@ export const parseSquadJson = (data) => {
     }
     const slotNumber = Number(key.replace(/\D/g, ""));
     if (slotNumber > 11) {
-      return; // remplaçants éventuels : seuls les 11 titulaires comptent
+      return; // possible substitutes: only the 11 starters count
     }
     const player = squadPlayerFromJson(entry, key);
     player.slotPosition = slotPositions.get(key) || "";
@@ -488,7 +488,7 @@ export const parseSquadJson = (data) => {
   };
 };
 
-// Page d'équipe complète : JSON embarqué d'abord, lecture du HTML rendu en secours.
+// Full squad page: embedded JSON first, rendered HTML read as fallback.
 export const parseSquadText = (text) => {
   for (const data of extractReactData(text)) {
     const parsed = parseSquadJson(data);
@@ -500,7 +500,7 @@ export const parseSquadText = (text) => {
   return doc ? Object.assign(parseSquadDocument(doc), { source: "html" }) : { formation: "", formationKey: "", players: [], blocked: looksBlocked(text) };
 };
 
-// Transforme du HTML en document (DOMParser du navigateur, ou injecté par les tests).
+// Turns HTML into a document (browser DOMParser, or injected by tests).
 export const htmlToDocument = (html) => {
   const Parser = typeof DOMParser !== "undefined" ? DOMParser : null;
   if (!Parser) {

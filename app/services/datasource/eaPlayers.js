@@ -182,11 +182,11 @@ export const searchEaPlayersByTerm = async (term, limit = 12) => {
 
 export const getPlayersByRating = async (rating, limit = 20) => {
   const rows = await loadEaPlayersCatalog();
-  const note = Number(rating) || 0;
-  if (!note) {
+  const wanted = Number(rating) || 0;
+  if (!wanted) {
     return [];
   }
-  return rows.filter((row) => row.rating === note).slice(0, limit);
+  return rows.filter((row) => row.rating === wanted).slice(0, limit);
 };
 
 export const lookupEaPlayer = async ({ name, rating, eaId } = {}) => {

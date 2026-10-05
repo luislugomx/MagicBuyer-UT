@@ -1,4 +1,6 @@
-// État d'exécution partagé entre le moteur et l'interface (non persistant).
+import { t } from "../i18n";
+
+// Runtime state shared between the engine and the UI (not persisted).
 
 export const STATUS = {
   IDLE: "idle",
@@ -11,15 +13,11 @@ export const STATUS = {
   STOPPED: "stopped",
 };
 
-export const STATUS_LABEL = {
-  idle: "À l'arrêt",
-  starting: "Démarrage…",
-  running: "En chasse",
-  paused: "En pause",
-  "auto-pause": "Pause auto",
-  cooldown: "Pause de sécurité",
-  stopping: "Arrêt en cours…",
-  stopped: "Arrêté",
+/** Translated label of a bot status, resolved at render time so it follows the active language. */
+export const statusLabel = (status) => {
+  const key = `core.status.${status}`;
+  const text = t(key);
+  return text === key ? status : text;
 };
 
 const emptyStats = () => ({
@@ -104,7 +102,7 @@ export const onStateChange = (fn) => {
   return () => listeners.delete(fn);
 };
 
-// Recherches sur la dernière minute (fenêtre glissante).
+// Searches over the last minute (sliding window).
 const searchTimes = [];
 
 export const recordSearch = (latencyMs) => {
@@ -175,7 +173,7 @@ export const onLog = (fn) => {
   return () => logListeners.delete(fn);
 };
 
-// Historique des transactions (export CSV).
+// Transaction history (CSV export).
 const transactions = [];
 
 export const recordTransaction = (entry) => {

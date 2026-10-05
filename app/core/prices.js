@@ -1,6 +1,7 @@
+import { numberLocale } from "../i18n";
 import { pageGlobal } from "./page";
 
-// Paliers de prix de FC 27 (UTCurrencyInputControl.PRICE_TIERS), triés du plus haut au plus bas.
+// FC 27 price tiers (UTCurrencyInputControl.PRICE_TIERS), sorted from highest to lowest.
 const FALLBACK_TIERS = [
   { min: 100000, inc: 1000 },
   { min: 50000, inc: 500 },
@@ -35,7 +36,7 @@ export const toInt = (value) => {
   return digits ? parseInt(digits, 10) : 0;
 };
 
-// Saisie utilisateur : "45000", "45 000", "45k", "1,2m".
+// User input: "45000", "45 000", "45k", "1,2m".
 export const parseCoinsInput = (value) => {
   const text = String(value == null ? "" : value)
     .trim()
@@ -53,7 +54,7 @@ const tierFor = (value, strict) =>
   tiers().find((tier) => (strict ? value > tier.min : value >= tier.min)) ||
   FALLBACK_TIERS[FALLBACK_TIERS.length - 1];
 
-// Arrondit à un prix valide EA (multiple du palier), borné à [150, max].
+// Rounds to a valid EA price (multiple of the tier step), clamped to [150, max].
 export const roundPrice = (value) => {
   const n = toInt(value);
   if (!n) {
@@ -64,7 +65,7 @@ export const roundPrice = (value) => {
   return Math.min(Math.max(rounded, MIN_PRICE), maxPrice());
 };
 
-// Arrondi vers le bas (prix max : ne jamais dépasser ce que l'utilisateur a saisi).
+// Rounds down (max price: never above what the user entered).
 export const floorPrice = (value) => {
   const n = toInt(value);
   if (n < MIN_PRICE) {
@@ -74,7 +75,7 @@ export const floorPrice = (value) => {
   return Math.min(Math.floor(n / inc) * inc, maxPrice());
 };
 
-// Arrondi vers le haut (prix min).
+// Rounds up (min price).
 export const ceilPrice = (value) => {
   const n = toInt(value);
   if (!n) {
@@ -87,7 +88,7 @@ export const ceilPrice = (value) => {
   return Math.min(Math.ceil(n / inc) * inc, maxPrice());
 };
 
-// Palier au-dessus (même règle que UTCurrencyInputControl.getIncrementAboveVal).
+// Next tier up (same rule as UTCurrencyInputControl.getIncrementAboveVal).
 export const priceAbove = (value) => {
   const n = toInt(value);
   if (n < MIN_PRICE) {
@@ -100,7 +101,7 @@ export const priceAbove = (value) => {
   return Math.min(Math.round((n + inc) / inc) * inc, maxPrice());
 };
 
-// Palier en dessous (même règle que UTCurrencyInputControl.getIncrementBelowVal).
+// Next tier down (same rule as UTCurrencyInputControl.getIncrementBelowVal).
 export const priceBelow = (value) => {
   const n = toInt(value);
   if (n <= MIN_PRICE) {
@@ -131,10 +132,10 @@ export const profitFor = (buyPrice, sellPrice) => {
 export const formatCoins = (value) => {
   const n = Math.round(Number(value) || 0);
   const sign = n < 0 ? "-" : "";
-  return sign + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return sign + new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: 0 }).format(Math.abs(n));
 };
 
-// Enchère de départ recommandée pour une mise en vente au BIN donné.
+// Recommended start price for a listing at the given BIN.
 export const startPriceFor = (bin) => {
   const below = priceBelow(bin);
   return below >= MIN_PRICE ? below : MIN_PRICE;

@@ -1,6 +1,6 @@
-// Accès au contexte de la page du web app EA (unsafeWindow sous Tampermonkey).
-// Toutes les classes EA de FC 27 (UTSearchCriteriaDTO, ItemPile, UtasErrorCode…)
-// sont des globales `var` de la page : on les lit ici, jamais via `window` du bac à sable.
+// Access to the EA web app page context (unsafeWindow under Tampermonkey).
+// All FC 27 EA classes (UTSearchCriteriaDTO, ItemPile, UtasErrorCode…)
+// are page `var` globals: they are read here, never through the sandbox `window`.
 
 let pageOverride = null;
 
@@ -16,7 +16,7 @@ export const getPage = () => {
   return typeof window !== "undefined" ? window : {};
 };
 
-// Utilisé par les tests pour simuler le web app.
+// Used by tests to simulate the web app.
 export const setPageForTests = (page) => {
   pageOverride = page;
 };
@@ -48,7 +48,7 @@ export const pile = (name) => {
   return PILE_FALLBACK[name];
 };
 
-// Codes UTAS de FC 27 (lus dans le code du web app), avec repli si EA les renomme.
+// FC 27 UTAS codes (read from the web app code), with a fallback if EA renames them.
 const ERROR_FALLBACK = {
   CAPTCHA_REQUIRED: 458,
   UT_BAD_REQUEST: 460,
@@ -111,7 +111,7 @@ export const localize = (key, fallback) => {
   }
 };
 
-// Toast natif du web app (bandeau vert/rouge en haut).
+// Native web app toast (green/red banner at the top).
 export const eaToast = (message, negative) => {
   try {
     const svc = services();
@@ -129,7 +129,7 @@ export const eaToast = (message, negative) => {
   return false;
 };
 
-// Compatibilité Firefox (Xray) : rend une fonction / un tableau utilisable par la page.
+// Firefox (Xray) compatibility: makes a function / an array usable by the page.
 export const toPageFunction = (fn) => {
   try {
     if (typeof exportFunction === "function") {
@@ -148,7 +148,7 @@ export const toPageArray = (values) => {
   return values.slice();
 };
 
-// Tableau de la page contenant des objets EA (références conservées, contrairement à cloneInto).
+// Page array holding EA objects (references kept, unlike cloneInto).
 export const pageArrayOf = (values) => {
   try {
     const PageArray = getPage().Array;

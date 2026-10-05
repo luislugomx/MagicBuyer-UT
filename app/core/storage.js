@@ -1,4 +1,4 @@
-// Stockage persistant : GM_setValue (invisible pour la page EA) avec repli localStorage.
+// Persistent storage: GM_setValue (invisible to the EA page) with a localStorage fallback.
 
 const PREFIX = "mb5.";
 
@@ -41,7 +41,7 @@ export const saveJson = (key, value) => {
   return ok;
 };
 
-// Lecture brute d'une ancienne clé localStorage (migration des versions précédentes).
+// Raw read of an old localStorage key (migration from previous versions).
 export const loadLegacy = (key) => {
   try {
     const raw = window.localStorage.getItem(key);

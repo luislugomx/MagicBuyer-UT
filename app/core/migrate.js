@@ -1,15 +1,15 @@
 import { futbinKeyForFilter, getFilters, updateFilter } from "./filters";
 import { getSettings, setSetting } from "./settings";
 
-// Migrations des réglages entre versions (exécutées une seule fois au démarrage).
+// Settings migrations between versions (run only once at startup).
 export const runMigrations = () => {
   const settings = getSettings();
   const done = new Set((settings.meta && settings.meta.migrations) || []);
   if (!done.has("futbin-modes")) {
-    // v5.0 : "prix de référence" global → v5.1 : mode FUTBIN par filtre + revente FUTBIN.
+    // v5.0: global "reference price" → v5.1: FUTBIN mode per filter + FUTBIN resale.
     if (settings.buy && settings.buy.useReference) {
       const percent = Number(settings.buy.referencePercent) || 85;
-      // Seulement les filtres qui visent une carte précise (le prix FUTBIN est celui de cette carte).
+      // Only filters that target a specific card (the FUTBIN price is that card's price).
       getFilters()
         .filter((filter) => futbinKeyForFilter(filter))
         .forEach((filter) => updateFilter(filter.id, { priceMode: "futbin", futbinPercent: percent }));
